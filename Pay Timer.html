@@ -1,0 +1,509 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Pay Timer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one narrow column. The running clock is the hero: gross pay ticking up, take-home under it, then controls, totals and a session log. */
+:root {
+  --bg: #f1f5f3;
+  --surface: #ffffff;
+  --fg: #12201b;
+  --muted: #566964;
+  --line: #d6e0dc;
+  --accent: #0e6a59;
+  --accent-fg: #ffffff;
+  --accent-soft: #dcf1ea;
+  --bad: #b3261e;
+  --bad-soft: #fbe5e3;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1411; --surface: #14201b; --fg: #e5eeea; --muted: #94a8a1; --line: #25352f;
+    --accent: #5fd0b8; --accent-fg: #052018; --accent-soft: #14352d;
+    --bad: #f28b82; --bad-soft: #3d1c1a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1411; --surface: #14201b; --fg: #e5eeea; --muted: #94a8a1; --line: #25352f;
+  --accent: #5fd0b8; --accent-fg: #052018; --accent-soft: #14352d;
+  --bad: #f28b82; --bad-soft: #3d1c1a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 24px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 24px; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 99px; padding: 3px 12px; font-size: 13px; font-weight: 500; background: var(--line); color: var(--muted); }
+.pill.on { background: var(--accent-soft); color: var(--accent); }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pill.on i { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .pill.on i { animation: none; } }
+.note { font-size: 13px; color: var(--bad); background: var(--bad-soft); border-radius: 8px; padding: 8px 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.clock { display: flex; flex-direction: column; gap: 16px; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.gross { font-family: var(--font-display); font-weight: 700; font-size: clamp(44px, 14vw, 80px); line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.net { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 8vw, 44px); line-height: 1.1; color: var(--accent); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.stack { display: flex; flex-direction: column; gap: 2px; }
+.time { font-family: var(--font-display); font-weight: 500; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.controls .grow { flex: 1 1 200px; min-width: 0; }
+input, button { font: inherit; color: inherit; }
+input[type=text], input[type=number], input[type=time] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; min-width: 0; }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 18px; }
+button.go { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; font-size: 17px; min-width: 128px; }
+button.go.stop { background: var(--bad); border-color: var(--bad); color: #fff; }
+button:disabled { opacity: 0.55; cursor: default; }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.startrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.startrow label { font-size: 13px; color: var(--muted); font-weight: 500; }
+.startrow input[type=time] { width: auto; }
+.startrow .sub { margin: 0; flex: 1 1 220px; }
+.taxline { font-size: 13px; margin-top: 14px; font-variant-numeric: tabular-nums; }
+.settings label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .take { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat small { color: var(--muted); font-variant-numeric: tabular-nums; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 4px; font-weight: 600; }
+.list { display: flex; flex-direction: column; }
+.item { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.item:first-child { border-top: 0; }
+.item .l { min-width: 0; flex: 1 1 200px; }
+.item .l div { overflow-wrap: anywhere; }
+.item .when { font-size: 12.5px; color: var(--muted); }
+.item .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.item .r span { color: var(--accent); font-weight: 600; }
+.item .r small { display: block; color: var(--muted); }
+button.link { border: 0; background: none; padding: 2px 4px; color: var(--muted); font-size: 12.5px; }
+button.link.armed { color: var(--bad); }
+.empty { color: var(--muted); padding: 12px 0; }
+.lock { min-height: 70vh; display: grid; place-items: center; }
+.lockbox { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+.lockbox label { font-size: 13px; color: var(--muted); font-weight: 500; }
+.lockbox h1 { margin-bottom: 4px; }
+.headr { display: flex; align-items: center; gap: 10px; }
+</style>
+
+<div class="lock" id="lock">
+  <form class="card lockbox" id="lockForm">
+    <h1>Pay Timer</h1>
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autocomplete="current-password" required>
+    <div class="note" id="lockErr" hidden>Wrong password. Try again.</div>
+    <button class="go" type="submit">Unlock</button>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <div class="head">
+    <h1>Pay Timer</h1>
+    <div class="headr">
+      <span class="pill" id="pill"><i></i><span id="pillText">Stopped</span></span>
+      <button type="button" class="link" id="lockBtn">Lock</button>
+    </div>
+  </div>
+  <div class="note" id="note" hidden></div>
+
+  <section class="card clock">
+    <div class="stack">
+      <div class="eyebrow">Earned this session, before taxes</div>
+      <div class="gross" id="gross">$0.0000</div>
+    </div>
+    <div class="stack">
+      <div class="net" id="net">$0.0000</div>
+      <div class="sub">Take-home after <span id="taxLbl">15</span>% estimated taxes</div>
+    </div>
+    <div class="time" id="clock">00:00:00</div>
+    <div class="startrow">
+      <label for="startAt">Started at</label>
+      <input type="time" id="startAt">
+      <span class="sub" id="startHint">Leave empty to start now. Already running a timer? Enter when you started.</span>
+    </div>
+    <div class="controls">
+      <input type="text" id="label" class="grow" placeholder="What are you working on? (optional)" aria-label="What you are working on" maxlength="120" autocomplete="off">
+      <button type="button" class="go" id="toggle">Start</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="settings">
+      <label for="rate">Hourly rate ($)
+        <input type="number" id="rate" inputmode="decimal" min="0" step="0.01" value="15">
+      </label>
+      <label for="hrs">Hours per week
+        <input type="number" id="hrs" inputmode="decimal" min="1" max="100" step="0.5" value="40">
+      </label>
+      <label for="local">City income tax (%)
+        <input type="number" id="local" inputmode="decimal" min="0" max="10" step="0.05" value="1.5">
+      </label>
+      <label for="override">Your own total tax % (optional)
+        <input type="number" id="override" inputmode="decimal" min="0" max="90" step="0.1" placeholder="Auto">
+      </label>
+    </div>
+    <div class="taxline" id="taxLine"></div>
+    <div class="sub">Estimate for a single filer using 2026 federal brackets and standard deduction, Ohio's 2.75% rate, and a full year at your weekly hours. City tax depends on where you work, so set yours. Leave the last box empty to use the automatic rate.</div>
+  </section>
+
+  <section class="totals">
+    <div class="card stat">
+      <h2>Today</h2>
+      <b id="dayGross">$0.00</b>
+      <div class="take" id="dayNet">$0.00 take-home</div>
+      <small id="dayTime">0h 00m</small>
+    </div>
+    <div class="card stat">
+      <h2>This week (from Monday)</h2>
+      <b id="weekGross">$0.00</b>
+      <div class="take" id="weekNet">$0.00 take-home</div>
+      <small id="weekTime">0h 00m</small>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Recent sessions</h2>
+    <div class="list" id="list"><div class="empty">No sessions yet. Start the timer and your first one lands here.</div></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var st = { running: false, startedAt: 0, label: "" };
+  var cfg = { rate: 15, hrs: 40, local: 1.5, override: null, taxPct: 15 };
+  var brk = { fed: 0, fica: 7.65, oh: 0, local: 0 };
+  var wasRunning = false;
+  var FED = [[12400, 0.10], [50400, 0.12], [105700, 0.22], [201775, 0.24], [256225, 0.32], [640600, 0.35], [Infinity, 0.37]];
+  function fedTax(ti) {
+    var tax = 0, prev = 0;
+    for (var i = 0; i < FED.length; i++) {
+      if (ti > prev) tax += (Math.min(ti, FED[i][0]) - prev) * FED[i][1];
+      prev = FED[i][0];
+    }
+    return tax;
+  }
+  function ohioTax(agi) {
+    var ex = agi <= 40000 ? 2400 : agi <= 80000 ? 2150 : 1900;
+    var ti = agi - ex;
+    return ti > 26050 ? 332 + 0.0275 * (ti - 26050) : 0;
+  }
+  function recalcTax() {
+    var annual = cfg.rate * cfg.hrs * 52;
+    var fed = 0, oh = 0;
+    if (annual > 0) {
+      fed = fedTax(Math.max(0, annual - 16100)) / annual * 100;
+      oh = ohioTax(annual) / annual * 100;
+    }
+    brk = { fed: fed, fica: 7.65, oh: oh, local: cfg.local };
+    cfg.taxPct = cfg.override != null ? cfg.override : brk.fed + brk.fica + brk.oh + brk.local;
+  }
+  function timeToMs(v) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(v || "");
+    if (!m) return null;
+    var d = new Date();
+    d.setHours(+m[1], +m[2], 0, 0);
+    if (d.getTime() > Date.now()) d.setDate(d.getDate() - 1);
+    return d.getTime();
+  }
+  var sessions = [];
+  var db = null;
+  var busy = false;
+  var lastKey = "";
+  var loadTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function money4(n) { return "$" + n.toFixed(4); }
+  function money2(n) { return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function hms(s) { return pad(Math.floor(s / 3600)) + ":" + pad(Math.floor(s % 3600 / 60)) + ":" + pad(s % 60); }
+  function hm(s) { return Math.floor(s / 3600) + "h " + pad(Math.floor(s % 3600 / 60)) + "m"; }
+  function showNote(msg) { var n = $("note"); n.textContent = msg || ""; n.hidden = !msg; }
+  function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function fail() { showNote("That change did not save. Check your connection and try again."); }
+
+  function secsNow() { return st.running ? Math.max(0, Math.floor((Date.now() - st.startedAt) / 1000)) : 0; }
+  function gross(secs, rate) { return secs * rate / 3600; }
+  function net(g, tax) { return g * (1 - tax / 100); }
+
+  function startOfDay() { var d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function startOfWeek() { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+  function sum(from) {
+    var o = { g: 0, n: 0, s: 0 };
+    sessions.forEach(function (x) { if (x.start >= from) { o.g += x.gross || 0; o.n += x.net || 0; o.s += x.seconds || 0; } });
+    if (st.running && st.startedAt >= from) {
+      var s = secsNow(), g = gross(s, cfg.rate);
+      o.g += g; o.n += net(g, cfg.taxPct); o.s += s;
+    }
+    return o;
+  }
+
+  function renderLive() {
+    var secs = secsNow();
+    var key = secs + "|" + cfg.rate + "|" + cfg.taxPct + "|" + sessions.length + "|" + st.running;
+    if (key === lastKey) return;
+    lastKey = key;
+    var g = gross(secs, cfg.rate);
+    $("gross").textContent = money4(g);
+    $("net").textContent = money4(net(g, cfg.taxPct));
+    $("clock").textContent = hms(secs);
+    $("taxLbl").textContent = cfg.taxPct.toFixed(1);
+    var d = sum(startOfDay()), w = sum(startOfWeek());
+    $("dayGross").textContent = money2(d.g);
+    $("dayNet").textContent = money2(d.n) + " take-home";
+    $("dayTime").textContent = hm(d.s);
+    $("weekGross").textContent = money2(w.g);
+    $("weekNet").textContent = money2(w.n) + " take-home";
+    $("weekTime").textContent = hm(w.s);
+  }
+
+  function renderControls() {
+    var b = $("toggle");
+    b.textContent = st.running ? "Stop" : "Start";
+    b.className = "go" + (st.running ? " stop" : "");
+    b.disabled = busy;
+    var p = $("pill");
+    p.className = "pill" + (st.running ? " on" : "");
+    $("pillText").textContent = st.running ? "Running" : "Stopped";
+    var lab = $("label");
+    if (st.running && document.activeElement !== lab) lab.value = st.label || "";
+    lab.disabled = false;
+    var r = $("rate"), h = $("hrs"), lo = $("local"), ov = $("override");
+    if (document.activeElement !== r) r.value = String(cfg.rate);
+    if (document.activeElement !== h) h.value = String(cfg.hrs);
+    if (document.activeElement !== lo) lo.value = String(cfg.local);
+    if (document.activeElement !== ov) ov.value = cfg.override == null ? "" : String(cfg.override);
+    var sa = $("startAt");
+    if (st.running) {
+      if (document.activeElement !== sa) { var sd = new Date(st.startedAt); sa.value = pad(sd.getHours()) + ":" + pad(sd.getMinutes()); }
+      wasRunning = true;
+    } else if (wasRunning) { sa.value = ""; wasRunning = false; }
+    $("startHint").textContent = st.running ? "Started earlier than this? Change the time and the clock catches up." : "Leave empty to start now. Already running a timer? Enter when you started.";
+    $("taxLine").textContent = cfg.override != null
+      ? "Using your own rate: " + cfg.override.toFixed(1) + "% total"
+      : "Federal " + brk.fed.toFixed(1) + "% + Social Security and Medicare " + brk.fica.toFixed(2) + "% + Ohio " + brk.oh.toFixed(1) + "% + city " + brk.local.toFixed(1) + "% = " + cfg.taxPct.toFixed(1) + "% total";
+  }
+
+  function renderList() {
+    var list = $("list");
+    list.textContent = "";
+    if (!sessions.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "No sessions yet. Start the timer and your first one lands here.";
+      list.appendChild(e);
+      return;
+    }
+    sessions.slice(0, 8).forEach(function (x) {
+      var row = document.createElement("div"); row.className = "item";
+      var l = document.createElement("div"); l.className = "l";
+      var title = document.createElement("div"); title.textContent = x.label || "Work session";
+      var when = document.createElement("div"); when.className = "when";
+      when.textContent = new Date(x.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " · " + hms(x.seconds || 0);
+      l.appendChild(title); l.appendChild(when);
+      var r = document.createElement("div"); r.className = "r";
+      var a = document.createElement("div"); a.textContent = money2(x.gross || 0);
+      var small = document.createElement("small");
+      var sp = document.createElement("span"); sp.textContent = money2(x.net || 0);
+      small.appendChild(sp); small.appendChild(document.createTextNode(" take-home"));
+      var del = document.createElement("button"); del.type = "button"; del.className = "link"; del.textContent = "Delete";
+      var armed = false;
+      del.addEventListener("click", function () {
+        if (!armed) { armed = true; del.textContent = "Click again to delete"; del.className = "link armed"; return; }
+        removeSession(x);
+      });
+      r.appendChild(a); r.appendChild(small); r.appendChild(del);
+      row.appendChild(l); row.appendChild(r);
+      list.appendChild(row);
+    });
+  }
+
+  function renderAll() { lastKey = ""; recalcTax(); renderControls(); renderLive(); renderList(); }
+
+  function persistCurrent() {
+    var data = { running: st.running, startedAt: st.startedAt, label: st.label };
+    if (db) return db.doc("timer/current").set(data);
+    lsSet("pt_cur", data);
+    return Promise.resolve();
+  }
+  function persistCfg() {
+    if (db) return db.doc("timer/settings").set({ rate: cfg.rate, hrs: cfg.hrs, local: cfg.local, override: cfg.override });
+    lsSet("pt_cfg", cfg);
+    return Promise.resolve();
+  }
+
+  function start() {
+    if (busy || st.running) return;
+    var ms = timeToMs($("startAt").value);
+    st = { running: true, startedAt: ms == null ? Date.now() : ms, label: $("label").value.trim() };
+    busy = true; renderAll();
+    persistCurrent().catch(fail).then(function () { busy = false; renderControls(); });
+  }
+
+  function stop() {
+    if (busy || !st.running) return;
+    var end = Date.now();
+    var secs = Math.max(0, Math.floor((end - st.startedAt) / 1000));
+    var g = gross(secs, cfg.rate);
+    var rec = { start: st.startedAt, end: end, seconds: secs, rate: cfg.rate, taxPct: cfg.taxPct, gross: Math.round(g * 1e6) / 1e6, net: Math.round(net(g, cfg.taxPct) * 1e6) / 1e6, label: st.label || "" };
+    st = { running: false, startedAt: 0, label: "" };
+    $("label").value = "";
+    busy = true;
+    if (db) {
+      sessions = [Object.assign({ id: "pending" }, rec)].concat(sessions);
+      renderAll();
+      db.collection("sessions").add(rec)
+        .then(function () { return persistCurrent(); })
+        .catch(fail)
+        .then(function () { busy = false; renderControls(); });
+    } else {
+      var all = lsGet("pt_sessions") || [];
+      rec.id = String(rec.start);
+      all.unshift(rec);
+      lsSet("pt_sessions", all.slice(0, 200));
+      sessions = all;
+      renderAll();
+      persistCurrent().then(function () { busy = false; renderControls(); });
+    }
+  }
+
+  function removeSession(x) {
+    if (db) {
+      if (x.id === "pending") return;
+      db.doc("sessions/" + x.id).delete().catch(fail);
+    } else {
+      sessions = sessions.filter(function (s) { return s.id !== x.id; });
+      lsSet("pt_sessions", sessions);
+      renderAll();
+    }
+  }
+
+  $("toggle").addEventListener("click", function () { if (st.running) stop(); else start(); });
+  $("label").addEventListener("change", function () {
+    if (!st.running) return;
+    st.label = $("label").value.trim();
+    persistCurrent().catch(fail);
+  });
+  function readNum(id, min, max, fallback) {
+    var v = parseFloat($(id).value);
+    if (isNaN(v)) return fallback;
+    return Math.min(max, Math.max(min, v));
+  }
+  $("rate").addEventListener("change", function () { cfg.rate = readNum("rate", 0, 10000, cfg.rate); renderAll(); persistCfg().catch(fail); });
+  $("hrs").addEventListener("change", function () { cfg.hrs = readNum("hrs", 1, 100, cfg.hrs); renderAll(); persistCfg().catch(fail); });
+  $("local").addEventListener("change", function () { cfg.local = readNum("local", 0, 10, cfg.local); renderAll(); persistCfg().catch(fail); });
+  $("override").addEventListener("change", function () {
+    var raw = $("override").value.trim();
+    cfg.override = raw === "" ? null : readNum("override", 0, 90, 0);
+    renderAll(); persistCfg().catch(fail);
+  });
+  $("startAt").addEventListener("change", function () {
+    if (!st.running) return;
+    var ms = timeToMs($("startAt").value);
+    if (ms == null) return;
+    st.startedAt = ms;
+    renderAll(); persistCurrent().catch(fail);
+  });
+
+  function startDb(d) {
+    db = d;
+    loadTimer = setTimeout(function () { showNote("Saved data is slow to load. The timer still runs, but it may not match your other devices yet."); }, 10000);
+    function loaded(snap) { if (snap && snap.metadata && !snap.metadata.fromCache) { clearTimeout(loadTimer); showNote(""); } }
+    function err() { clearTimeout(loadTimer); showNote("Saved data could not be loaded. Reload the page to try again."); }
+    db.doc("timer/settings").onSnapshot(function (snap) {
+      loaded(snap);
+      if (snap.exists) {
+        var v = snap.data();
+        if (typeof v.rate === "number") cfg.rate = v.rate;
+        if (typeof v.hrs === "number") cfg.hrs = v.hrs;
+        if (typeof v.local === "number") cfg.local = v.local;
+        cfg.override = typeof v.override === "number" ? v.override : null;
+      }
+      renderAll();
+    }, err);
+    db.doc("timer/current").onSnapshot(function (snap) {
+      loaded(snap);
+      if (snap.exists) {
+        var v = snap.data();
+        st = { running: !!v.running, startedAt: v.startedAt || 0, label: v.label || "" };
+      } else {
+        st = { running: false, startedAt: 0, label: "" };
+      }
+      renderAll();
+    }, err);
+    db.collection("sessions").orderBy("start", "desc").limit(200).onSnapshot(function (snap) {
+      loaded(snap);
+      sessions = snap.docs.map(function (x) { return Object.assign({ id: x.id }, x.data()); });
+      renderAll();
+    }, err);
+  }
+
+  function startLocal() {
+    var c = lsGet("pt_cfg");
+    if (c) { cfg.rate = c.rate; cfg.hrs = c.hrs || 40; cfg.local = c.local == null ? 1.5 : c.local; cfg.override = typeof c.override === "number" ? c.override : null; }
+    var cur = lsGet("pt_cur"); if (cur) st = cur;
+    sessions = lsGet("pt_sessions") || [];
+    showNote("Shared saving is not available here, so this timer only keeps data in this browser.");
+    renderAll();
+  }
+
+  function boot() {
+    setInterval(renderLive, 250);
+    renderAll();
+    var use = window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null);
+    use.then(function (d) { if (d) startDb(d); else startLocal(); }, startLocal);
+  }
+
+  // Lock screen. This is a simple privacy lock for this page, not strong security.
+  var HASH = "a6dd50b5db419648b270b6a8cf63fa4f541537e29ccce9607dfa012668c30721";
+  var booted = false;
+  function sha(s) {
+    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)).then(function (b) {
+      return Array.prototype.map.call(new Uint8Array(b), function (x) { return x.toString(16).padStart(2, "0"); }).join("");
+    });
+  }
+  function unlock() {
+    $("lock").hidden = true;
+    $("app").hidden = false;
+    if (!booted) { booted = true; boot(); }
+  }
+  function relock() {
+    try { localStorage.removeItem("pt_ok"); } catch (e) {}
+    $("app").hidden = true;
+    $("lock").hidden = false;
+    $("lockErr").hidden = true;
+    $("pw").focus();
+  }
+  $("lockForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var err = $("lockErr");
+    var p;
+    try { p = sha("paytimer:" + $("pw").value); } catch (x) { err.textContent = "This browser cannot check passwords here."; err.hidden = false; return; }
+    p.then(function (h) {
+      if (h === HASH) {
+        try { localStorage.setItem("pt_ok", HASH); } catch (x) {}
+        $("pw").value = ""; err.hidden = true; unlock();
+      } else {
+        err.textContent = "Wrong password. Try again."; err.hidden = false;
+      }
+    }).catch(function () { err.textContent = "This browser cannot check passwords here."; err.hidden = false; });
+  });
+  $("lockBtn").addEventListener("click", relock);
+  var remembered = false;
+  try { remembered = localStorage.getItem("pt_ok") === HASH; } catch (e) {}
+  if (remembered) unlock();
+})();
+</script>
+
+</body></html>
