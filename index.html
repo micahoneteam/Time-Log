@@ -1,5 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Pay Timer</title>
+<!doctype html><html><head><meta charset="utf-8"><title>Pay Timer</title><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
 <style>
@@ -100,10 +99,12 @@ button.link.armed { color: var(--bad); }
 <div class="lock" id="lock">
   <form class="card lockbox" id="lockForm">
     <h1>Pay Timer</h1>
+    <label for="em">Email</label>
+    <input type="email" id="em" autocomplete="username" required>
     <label for="pw">Password</label>
     <input type="password" id="pw" autocomplete="current-password" required>
-    <div class="note" id="lockErr" hidden>Wrong password. Try again.</div>
-    <button class="go" type="submit">Unlock</button>
+    <div class="note" id="lockErr" hidden></div>
+    <button class="go" type="submit">Sign in</button>
   </form>
 </div>
 
@@ -112,7 +113,7 @@ button.link.armed { color: var(--bad); }
     <h1>Pay Timer</h1>
     <div class="headr">
       <span class="pill" id="pill"><i></i><span id="pillText">Stopped</span></span>
-      <button type="button" class="link" id="lockBtn">Lock</button>
+      <button type="button" class="link" id="lockBtn">Sign out</button>
     </div>
   </div>
   <div class="note" id="note" hidden></div>
@@ -461,48 +462,53 @@ button.link.armed { color: var(--bad); }
   function boot() {
     setInterval(renderLive, 250);
     renderAll();
-    var use = window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null);
-    use.then(function (d) { if (d) startDb(d); else startLocal(); }, startLocal);
+    startDb(firebase.firestore());
   }
 
-  // Lock screen. This is a simple privacy lock for this page, not strong security.
-  var HASH = "a6dd50b5db419648b270b6a8cf63fa4f541537e29ccce9607dfa012668c30721";
+  // Sign-in: Firebase Auth (email + password). Data is only readable by the signed-in owner (see Firestore rules).
+  var CONFIG = {
+    apiKey: "AIzaSyA_rbwgH4iP_QRubn7gnt1f3RZl-pwwawA",
+    authDomain: "pay-timer-30a24.firebaseapp.com",
+    projectId: "pay-timer-30a24",
+    storageBucket: "pay-timer-30a24.firebasestorage.app",
+    messagingSenderId: "631747264050",
+    appId: "1:631747264050:web:8a1a7567cc9965571a862b"
+  };
   var booted = false;
-  function sha(s) {
-    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)).then(function (b) {
-      return Array.prototype.map.call(new Uint8Array(b), function (x) { return x.toString(16).padStart(2, "0"); }).join("");
-    });
+  function showLock(msg) {
+    $("app").hidden = true;
+    $("lock").hidden = false;
+    var err = $("lockErr");
+    err.textContent = msg || "";
+    err.hidden = !msg;
   }
   function unlock() {
     $("lock").hidden = true;
     $("app").hidden = false;
     if (!booted) { booted = true; boot(); }
   }
-  function relock() {
-    try { localStorage.removeItem("pt_ok"); } catch (e) {}
-    $("app").hidden = true;
-    $("lock").hidden = false;
-    $("lockErr").hidden = true;
-    $("pw").focus();
+  if (typeof firebase === "undefined") {
+    showLock("Could not load the sign-in service. Check your connection and reload.");
+  } else {
+    firebase.initializeApp(CONFIG);
+    firebase.auth().onAuthStateChanged(function (u) {
+      if (u) unlock();
+      else if (booted) location.reload();
+      else showLock("");
+    });
+    $("lockForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      showLock("");
+      $("lock").hidden = false;
+      firebase.auth().signInWithEmailAndPassword($("em").value.trim(), $("pw").value)
+        .then(function () { $("pw").value = ""; })
+        .catch(function (x) {
+          var bad = x && (x.code === "auth/invalid-credential" || x.code === "auth/wrong-password" || x.code === "auth/user-not-found" || x.code === "auth/invalid-email");
+          showLock(bad ? "Wrong email or password." : "Could not sign in. Check your connection and try again.");
+        });
+    });
+    $("lockBtn").addEventListener("click", function () { firebase.auth().signOut(); });
   }
-  $("lockForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    var err = $("lockErr");
-    var p;
-    try { p = sha("paytimer:" + $("pw").value); } catch (x) { err.textContent = "This browser cannot check passwords here."; err.hidden = false; return; }
-    p.then(function (h) {
-      if (h === HASH) {
-        try { localStorage.setItem("pt_ok", HASH); } catch (x) {}
-        $("pw").value = ""; err.hidden = true; unlock();
-      } else {
-        err.textContent = "Wrong password. Try again."; err.hidden = false;
-      }
-    }).catch(function () { err.textContent = "This browser cannot check passwords here."; err.hidden = false; });
-  });
-  $("lockBtn").addEventListener("click", relock);
-  var remembered = false;
-  try { remembered = localStorage.getItem("pt_ok") === HASH; } catch (e) {}
-  if (remembered) unlock();
 })();
 </script>
 
