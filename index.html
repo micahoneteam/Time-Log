@@ -94,6 +94,49 @@ button.link.armed { color: var(--bad); }
 .lockbox label { font-size: 13px; color: var(--muted); font-weight: 500; }
 .lockbox h1 { margin-bottom: 4px; }
 .headr { display: flex; align-items: center; gap: 10px; }
+
+.btn2 { font-weight: 600; }
+.boxes3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.cal-head h2 { margin: 0; font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--fg); }
+.cal-nav { display: flex; gap: 6px; }
+.cal-nav button { padding: 4px 12px; }
+.msum { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+.cgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, 1.35fr); gap: 4px; }
+.dow { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: center; font-weight: 600; }
+.cell { min-height: 58px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; font-size: 11px; cursor: pointer; overflow: hidden; background: var(--surface); text-align: left; display: block; width: 100%; font-variant-numeric: tabular-nums; }
+.cell.out { opacity: 0.4; }
+.cell.worked { background: var(--accent-soft); border-color: transparent; }
+.cell.today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cell.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cell .n { color: var(--muted); font-weight: 600; display: block; }
+.cell .t { font-weight: 700; display: block; margin-top: 2px; line-height: 1.15; }
+.cell .e { color: var(--muted); font-size: 10px; display: block; }
+.wk { min-height: 58px; border-radius: 8px; padding: 4px 2px; background: var(--bg); font-size: 11px; display: flex; flex-direction: column; justify-content: center; text-align: center; font-variant-numeric: tabular-nums; }
+.wk b { font-weight: 700; }
+.wk span { color: var(--muted); font-size: 10px; }
+.daypanel { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.daypanel h3 { margin: 0 0 6px; font-size: 14px; font-family: var(--font-display); }
+.daypanel .item { padding: 8px 0; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 14px; z-index: 50; }
+.overlay.open { display: flex; }
+.modal { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 14px; width: 100%; max-width: 420px; max-height: 92vh; overflow-y: auto; padding: 20px; }
+.modal h3 { margin: 0 0 12px; font-family: var(--font-display); font-size: 18px; }
+.modal .mrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.modal .mrow.one { grid-template-columns: 1fr; }
+.modal label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.modal input[type=date] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; min-width: 0; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 2px 0 12px; }
+.seg button { padding: 8px; font-size: 13px; }
+.seg button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+.mprev { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-weight: 600; margin: 2px 0 8px; font-variant-numeric: tabular-nums; }
+.merr { color: var(--bad); font-size: 13px; min-height: 18px; margin-bottom: 6px; }
+.mbtns { display: flex; gap: 10px; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .cell { min-height: 48px; }
+  .cell .e { display: none; }
+  .wk { min-height: 48px; }
+}
 </style>
 
 <div class="lock" id="lock">
@@ -137,6 +180,9 @@ button.link.armed { color: var(--bad); }
       <input type="text" id="label" class="grow" placeholder="What are you working on? (optional)" aria-label="What you are working on" maxlength="120" autocomplete="off">
       <button type="button" class="go" id="toggle">Start</button>
     </div>
+    <div class="controls">
+      <button type="button" class="btn2" id="addPast">+ Add past time</button>
+    </div>
   </section>
 
   <section class="card">
@@ -158,7 +204,7 @@ button.link.armed { color: var(--bad); }
     <div class="sub">Estimate for a single filer using 2026 federal brackets and standard deduction, Ohio's 2.75% rate, and a full year at your weekly hours. City tax depends on where you work, so set yours. Leave the last box empty to use the automatic rate.</div>
   </section>
 
-  <section class="totals">
+  <section class="boxes3">
     <div class="card stat">
       <h2>Today</h2>
       <b id="dayGross">$0.00</b>
@@ -166,17 +212,70 @@ button.link.armed { color: var(--bad); }
       <small id="dayTime">0h 00m</small>
     </div>
     <div class="card stat">
-      <h2>This week (from Monday)</h2>
+      <h2>Time this week</h2>
+      <b id="weekTime">0h 00m</b>
+      <small id="weekRange"></small>
+    </div>
+    <div class="card stat">
+      <h2>Earned this week</h2>
       <b id="weekGross">$0.00</b>
       <div class="take" id="weekNet">$0.00 take-home</div>
-      <small id="weekTime">0h 00m</small>
     </div>
+  </section>
+
+  <section class="card">
+    <div class="cal-head">
+      <h2 id="monthTitle"></h2>
+      <div class="cal-nav">
+        <button type="button" id="prevM" aria-label="Previous month">‹</button>
+        <button type="button" id="todayM">Today</button>
+        <button type="button" id="nextM" aria-label="Next month">›</button>
+      </div>
+    </div>
+    <div class="msum" id="monthSum"></div>
+    <div class="cgrid" id="cgrid"></div>
+    <div class="daypanel" id="dayPanel" hidden></div>
   </section>
 
   <section class="card">
     <h2>Recent sessions</h2>
     <div class="list" id="list"><div class="empty">No sessions yet. Start the timer and your first one lands here.</div></div>
   </section>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h3 id="mTitle">Add past time</h3>
+    <div class="mrow one"><label for="mDate">Day<input type="date" id="mDate"></label></div>
+    <div class="seg">
+      <button type="button" id="modeRange" class="on">Start &amp; end time</button>
+      <button type="button" id="modeAmount">Amount of time</button>
+    </div>
+    <div class="mrow" id="rangeFields">
+      <label for="mStart">Start<input type="time" id="mStart"></label>
+      <label for="mEnd">End<input type="time" id="mEnd"></label>
+    </div>
+    <div id="amountFields" hidden>
+      <div class="mrow">
+        <label for="mHours">Hours<input type="number" id="mHours" min="0" step="1" inputmode="numeric" placeholder="0"></label>
+        <label for="mMins">Minutes<input type="number" id="mMins" min="0" max="59" step="1" inputmode="numeric" placeholder="0"></label>
+      </div>
+      <div class="mrow">
+        <label for="mStartA">Start (optional)<input type="time" id="mStartA"></label>
+        <label for="mEndA">End (optional)<input type="time" id="mEndA"></label>
+      </div>
+    </div>
+    <div class="mrow">
+      <label for="mRate">Pay rate ($/hr)<input type="number" id="mRate" min="0" step="0.01" inputmode="decimal"></label>
+      <label for="mNote">Note (optional)<input type="text" id="mNote" maxlength="120" autocomplete="off" placeholder="What was it?"></label>
+    </div>
+    <div class="mprev" id="mPrev">Total: – · $0.00</div>
+    <div class="merr" id="mErr"></div>
+    <div class="mbtns">
+      <button type="button" id="mCancel">Cancel</button>
+      <button type="button" class="go" id="mSave" style="min-width:0;font-size:15px">Add time</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -267,6 +366,8 @@ button.link.armed { color: var(--bad); }
     $("weekGross").textContent = money2(w.g);
     $("weekNet").textContent = money2(w.n) + " take-home";
     $("weekTime").textContent = hm(w.s);
+    var ws = new Date(startOfWeek()), we = new Date(ws); we.setDate(we.getDate() + 6);
+    $("weekRange").textContent = MON[ws.getMonth()].slice(0, 3) + " " + ws.getDate() + " – " + MON[we.getMonth()].slice(0, 3) + " " + we.getDate();
   }
 
   function renderControls() {
@@ -311,7 +412,9 @@ button.link.armed { color: var(--bad); }
       var l = document.createElement("div"); l.className = "l";
       var title = document.createElement("div"); title.textContent = x.label || "Work session";
       var when = document.createElement("div"); when.className = "when";
-      when.textContent = new Date(x.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " · " + hms(x.seconds || 0);
+      when.textContent = (x.noTimes
+        ? new Date(x.start).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+        : new Date(x.start).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })) + " · " + hms(x.seconds || 0);
       l.appendChild(title); l.appendChild(when);
       var r = document.createElement("div"); r.className = "r";
       var a = document.createElement("div"); a.textContent = money2(x.gross || 0);
@@ -330,7 +433,179 @@ button.link.armed { color: var(--bad); }
     });
   }
 
-  function renderAll() { lastKey = ""; recalcTax(); renderControls(); renderLive(); renderList(); }
+
+  // ---------- calendar ----------
+  var MON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var DOWS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  var DOWL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var calView = new Date(); calView.setDate(1);
+  var calSel = null;
+  var armedDel = null;
+  function dkey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function pkey(k) { var p = k.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function wkStart(d) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+  function sessDay(x) { return x.day || dkey(new Date(x.start)); }
+  function durShort(s) { s = Math.round(s / 60) * 60; var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? (m ? h + "h " + m + "m" : h + "h") : m + "m"; }
+  function t12(ms) { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); }
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+
+  function renderCalendar() {
+    var y = calView.getFullYear(), m = calView.getMonth();
+    $("monthTitle").textContent = MON[m] + " " + y;
+    var by = {};
+    sessions.forEach(function (x) {
+      var k = sessDay(x), o = by[k] || (by[k] = { s: 0, g: 0, list: [] });
+      o.s += x.seconds || 0; o.g += x.gross || 0; o.list.push(x);
+    });
+    var mS = 0, mG = 0, mD = 0, k;
+    for (k in by) { var d0 = pkey(k); if (d0.getFullYear() === y && d0.getMonth() === m) { mS += by[k].s; mG += by[k].g; mD++; } }
+    $("monthSum").textContent = mD + (mD === 1 ? " day" : " days") + " worked · " + hm(mS) + " · " + money2(mG);
+
+    var g = $("cgrid"); g.textContent = "";
+    DOWS.forEach(function (d) { g.appendChild(el("div", "dow", d)); });
+    g.appendChild(el("div", "dow", "Week"));
+    var start = wkStart(new Date(y, m, 1)), end = wkStart(new Date(y, m + 1, 0)); end.setDate(end.getDate() + 6);
+    var todayK = dkey(new Date()), cur = new Date(start);
+    while (cur <= end) {
+      var wS = 0, wG = 0;
+      for (var i = 0; i < 7; i++) {
+        var key = dkey(cur), info = by[key];
+        var c = el("button", "cell" + (cur.getMonth() !== m ? " out" : "") + (info ? " worked" : "") + (key === todayK ? " today" : "") + (key === calSel ? " sel" : ""));
+        c.type = "button";
+        c.appendChild(el("span", "n", String(cur.getDate())));
+        if (info) {
+          wS += info.s; wG += info.g;
+          c.appendChild(el("span", "t", durShort(info.s)));
+          c.appendChild(el("span", "e", money2(info.g)));
+        }
+        (function (kk) { c.addEventListener("click", function () { calSel = (calSel === kk ? null : kk); armedDel = null; renderCalendar(); }); })(key);
+        g.appendChild(c);
+        cur.setDate(cur.getDate() + 1);
+      }
+      var w = el("div", "wk");
+      if (wS > 0) { w.appendChild(el("b", null, durShort(wS))); w.appendChild(el("span", null, money2(wG))); }
+      else { w.style.color = "var(--muted)"; w.textContent = "–"; }
+      g.appendChild(w);
+    }
+    renderDayPanel(by);
+  }
+
+  function renderDayPanel(by) {
+    var p = $("dayPanel");
+    p.textContent = "";
+    if (!calSel) { p.hidden = true; return; }
+    p.hidden = false;
+    var d = pkey(calSel);
+    p.appendChild(el("h3", null, DOWL[d.getDay()] + ", " + MON[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear()));
+    var info = by[calSel];
+    if (!info) p.appendChild(el("div", "empty", "No time logged this day."));
+    else info.list.slice().sort(function (a, b) { return a.start - b.start; }).forEach(function (x) {
+      var row = el("div", "item");
+      var l = el("div", "l");
+      l.appendChild(el("div", null, x.label || (x.manual ? "Added time" : "Work session")));
+      var bits = [];
+      if (!x.noTimes) bits.push(t12(x.start) + " – " + t12(x.end));
+      bits.push(hms(x.seconds || 0));
+      bits.push(money2(x.rate || 0) + "/hr");
+      l.appendChild(el("div", "when", bits.join(" · ")));
+      var r = el("div", "r");
+      r.appendChild(el("div", null, money2(x.gross || 0)));
+      var small = el("small"); small.appendChild(el("span", null, money2(x.net || 0))); small.appendChild(document.createTextNode(" take-home"));
+      r.appendChild(small);
+      var del = el("button", "link" + (armedDel === x.id ? " armed" : ""), armedDel === x.id ? "Click again to delete" : "Delete");
+      del.type = "button";
+      del.addEventListener("click", function () {
+        if (armedDel !== x.id) { armedDel = x.id; renderCalendar(); return; }
+        armedDel = null; removeSession(x);
+      });
+      r.appendChild(del);
+      row.appendChild(l); row.appendChild(r); p.appendChild(row);
+    });
+    var add = el("button", "btn2", "+ Add time to this day"); add.type = "button"; add.style.marginTop = "8px";
+    add.addEventListener("click", function () { openAdd(calSel); });
+    p.appendChild(add);
+  }
+
+  $("prevM").addEventListener("click", function () { calView.setMonth(calView.getMonth() - 1); renderCalendar(); });
+  $("nextM").addEventListener("click", function () { calView.setMonth(calView.getMonth() + 1); renderCalendar(); });
+  $("todayM").addEventListener("click", function () { calView = new Date(); calView.setDate(1); renderCalendar(); });
+
+  // ---------- add past time ----------
+  var addMode = "range";
+  function setMode(m) {
+    addMode = m;
+    $("modeRange").className = m === "range" ? "on" : "";
+    $("modeAmount").className = m === "amount" ? "on" : "";
+    $("rangeFields").hidden = m !== "range";
+    $("amountFields").hidden = m !== "amount";
+    addPreview();
+  }
+  function openAdd(dayKey) {
+    $("mDate").value = dayKey || dkey(new Date());
+    ["mStart","mEnd","mHours","mMins","mStartA","mEndA","mNote"].forEach(function (id) { $(id).value = ""; });
+    $("mRate").value = String(cfg.rate);
+    $("mErr").textContent = "";
+    setMode("range");
+    $("overlay").classList.add("open");
+  }
+  function closeAdd() { $("overlay").classList.remove("open"); }
+  function tmin(v) { var p = v.split(":"); return (+p[0]) * 60 + (+p[1]); }
+  function atTime(day, v, plusDays) { var d = pkey(day), p = v.split(":"); return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (plusDays || 0), +p[0], +p[1], 0, 0).getTime(); }
+  function addCompute() {
+    var day = $("mDate").value;
+    if (!day) return { error: "Pick the day this time was worked." };
+    var rate = parseFloat($("mRate").value); if (isNaN(rate) || rate < 0) rate = 0;
+    var startMs, endMs, secs, noTimes = false;
+    if (addMode === "range") {
+      var a = $("mStart").value, b = $("mEnd").value;
+      if (!a || !b) return { error: "Enter both a start and an end time." };
+      if (a === b) return { error: "Start and end can’t be the same time." };
+      startMs = atTime(day, a, 0);
+      endMs = atTime(day, b, tmin(b) < tmin(a) ? 1 : 0);
+      secs = Math.round((endMs - startMs) / 1000);
+    } else {
+      var h = parseInt($("mHours").value, 10) || 0, mi = parseInt($("mMins").value, 10) || 0;
+      if (h < 0 || mi < 0 || h * 60 + mi <= 0) return { error: "Enter an amount of time." };
+      secs = (h * 60 + mi) * 60;
+      var sa = $("mStartA").value, ea = $("mEndA").value;
+      if (sa) { startMs = atTime(day, sa, 0); endMs = startMs + secs * 1000; }
+      else if (ea) { endMs = atTime(day, ea, 0); startMs = endMs - secs * 1000; }
+      else { startMs = atTime(day, "12:00", 0); endMs = startMs + secs * 1000; noTimes = true; }
+    }
+    return { day: day, rate: rate, start: startMs, end: endMs, seconds: secs, noTimes: noTimes };
+  }
+  function addPreview() {
+    var r = addCompute();
+    $("mPrev").textContent = r.error ? "Total: – · $0.00" : "Total: " + hm(r.seconds) + " · " + money2(gross(r.seconds, r.rate));
+  }
+  function addSession() {
+    var r = addCompute();
+    if (r.error) { $("mErr").textContent = r.error; return; }
+    var g = gross(r.seconds, r.rate);
+    var rec = { start: r.start, end: r.end, seconds: r.seconds, rate: r.rate, taxPct: cfg.taxPct, gross: Math.round(g * 1e6) / 1e6, net: Math.round(net(g, cfg.taxPct) * 1e6) / 1e6, label: $("mNote").value.trim(), manual: true, day: r.day };
+    if (r.noTimes) rec.noTimes = true;
+    var d = pkey(r.day); calView = new Date(d.getFullYear(), d.getMonth(), 1); calSel = r.day;
+    $("mSave").disabled = true;
+    if (db) {
+      db.collection("sessions").add(rec).then(function () { closeAdd(); }).catch(function () { $("mErr").textContent = "That didn’t save. Check your connection and try again."; }).then(function () { $("mSave").disabled = false; });
+    } else {
+      var all = lsGet("pt_sessions") || [];
+      rec.id = String(rec.start) + "m";
+      all.unshift(rec);
+      all.sort(function (a, b) { return b.start - a.start; });
+      lsSet("pt_sessions", all.slice(0, 200));
+      sessions = all; closeAdd(); renderAll(); $("mSave").disabled = false;
+    }
+  }
+  $("addPast").addEventListener("click", function () { openAdd(null); });
+  $("mCancel").addEventListener("click", closeAdd);
+  $("overlay").addEventListener("click", function (e) { if (e.target === $("overlay")) closeAdd(); });
+  $("modeRange").addEventListener("click", function () { setMode("range"); });
+  $("modeAmount").addEventListener("click", function () { setMode("amount"); });
+  ["mDate","mStart","mEnd","mHours","mMins","mStartA","mEndA","mRate"].forEach(function (id) { $(id).addEventListener("input", function () { $("mErr").textContent = ""; addPreview(); }); });
+  $("mSave").addEventListener("click", addSession);
+
+  function renderAll() { lastKey = ""; recalcTax(); renderControls(); renderLive(); renderList(); renderCalendar(); }
 
   function persistCurrent() {
     var data = { running: st.running, startedAt: st.startedAt, label: st.label };
